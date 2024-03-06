@@ -11,9 +11,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import androidx.compose.runtime.mutableStateOf
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import okhttp3.OkHttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.jsoup.Jsoup
 import kotlin.math.roundToLong
 
@@ -21,37 +22,21 @@ class MyService : Service() {
 
     companion object {
         var isRunning = mutableStateOf(false)
+        var delayTime = Constant.FOREGROUND_DELAY
     }
-
-    private val client = OkHttpClient()
-    private val url = "https://www.ssi.com.vn/khach-hang-ca-nhan/hieu-qua-dau-tu-cua-quy-sca"
-//    private val url = "https://api.thingspeak.com/channels/2454460/feeds/last.json?api_key=WWMIUD0U48OX0/8R3"
-    private val request = okhttp3.Request.Builder()
-        .url(url)
-        .build()
-
     private val handler = Handler(Looper.getMainLooper())
-    private val runnable = object : Runnable {
-        override fun run() {
-            getValue()
-            handler.postDelayed(this, 10 * 1000) // 12 hours in milliseconds
-        }
-    }
-
     private val sharedPreferences: SharedPreferences
-        get() = getSharedPreferences("com.example.ssiam", MODE_PRIVATE)
+        get() = getSharedPreferences(Constant.PREF_NAME, MODE_PRIVATE)
     private val manager: NotificationManager
         get() = getSystemService(NotificationManager::class.java)
+    private val scope = CoroutineScope(Dispatchers.IO)
 
-    override fun onBind(intent: Intent): IBinder? {
-        return null
-    }
+    override fun onBind(intent: Intent): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotificationChannel()
-        val notification = createNotification("SSIAM is running")
-        startForeground(1, notification)
-        handler.post(runnable)
+        startForeground(1, createNotification("SSIAM is running"))
+        getValue() // 12 hours in milliseconds
         isRunning.value = true
         return START_STICKY
     }
@@ -59,39 +44,42 @@ class MyService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning.value = false
-        handler.removeCallbacks(runnable)
+        handler.removeCallbacks(::getValue)
+        scope.cancel()
     }
 
     private fun getValue() {
-        client.newCall(request).enqueue(object : okhttp3.Callback {
-            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
-                e.printStackTrace()
-            }
-
-            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
-                response.body?.string()?.let {
-                    val money = (Jsoup.parse(it).select("div.numberHeading.clone-h3").text()
-                            .replace(".", "")
-                            .replace(',', '.')
-                            .toDouble() * 14.63)
-                            .roundToLong()
-
-//                    val type = object : TypeToken<Map<String, String>>() {}.type
-//                    val infor = Gson().fromJson<Map<String, String>>(it, type)
-//                    val money = infor["field1"]?.toLong() ?: 0
-                    val lastMoney = sharedPreferences.getLong("money", 0)
-                    if (money != lastMoney) {
-                        sharedPreferences.edit().putLong("money", money).apply()
-                        val intent = Intent("com.example.ssiam.MONEY_UPDATE")
-                        intent.putExtra("money", money)
-                        sendBroadcast(intent)
-
-                        val notification = createNotification("Money change to: ${String.format("%,d", money)} VND")
-                        manager.notify(2, notification)
-                    }
+        scope.launch {
+            HttpHandler.handle(Constant.VALUE_URL)?.let {
+                val money = parseMoney(it)
+                val lastMoney = sharedPreferences.getLong(Constant.PREF_MONEY, 0)
+                if (money != lastMoney) {
+                    updateMoney(money)
+                    sendMoneyUpdateBroadcast(money)
+                    notifyMoneyChange(money)
                 }
             }
-        })
+            handler.postDelayed(::getValue, delayTime)
+        }
+    }
+
+    private fun parseMoney(response: String): Long {
+        val moneyText = Jsoup.parse(response).select("div.numberHeading.clone-h3").text()
+        val moneyValue = moneyText.replace(".", "").replace(',', '.').toDouble() * Constant.CCQ_AMOUNT
+        return moneyValue.roundToLong()
+    }
+
+    private fun updateMoney(money: Long) {
+        sharedPreferences.edit().putLong(Constant.PREF_MONEY, money).apply()
+    }
+
+    private fun sendMoneyUpdateBroadcast(money: Long) {
+        sendBroadcast(Intent(Constant.MONEY_UPDATE).putExtra(Constant.PREF_MONEY, money))
+    }
+
+    private fun notifyMoneyChange(money: Long) {
+        val notification = createNotification("Money change to: ${String.format("%,d", money)} VND")
+        manager.notify(2, notification)
     }
 
     private fun createNotificationChannel() {
@@ -103,7 +91,8 @@ class MyService : Service() {
 
     private fun createNotification(content: String): Notification {
         val notiIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notiIntent, PendingIntent.FLAG_IMMUTABLE)
+        val pendingIntent =
+            PendingIntent.getActivity(this, 0, notiIntent, PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, "SSIAM")
             .setContentTitle("SSIAM")
             .setContentText(content)
