@@ -28,7 +28,20 @@ class AppUpdater(private val context: Context) {
     private var token: String = ""
     var isUpdateAvailable = mutableStateOf(false)
 
-    fun checkForUpdates() {
+    fun start() {
+        deleteRedundantApk()
+        checkForUpdates()
+    }
+
+    private fun deleteRedundantApk() {
+        destination = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS).toString() + "/MySSIAM.apk"
+        val file = File(destination)
+        if (file.exists()) {
+            file.delete()
+        }
+    }
+
+    private fun checkForUpdates() {
         HttpHandler.asyncHandle(Constant.TOKEN_URL) { response ->
             response.body?.string()?.let {
                 try {
@@ -70,8 +83,6 @@ class AppUpdater(private val context: Context) {
     }
 
     fun downloadApk() {
-        destination =
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS).toString() + "/MySSIAM.apk"
         val uri = Uri.parse("file://$destination")
         val request = DownloadManager.Request(Uri.parse(apkUrl))
             .setTitle("MySSIAM")

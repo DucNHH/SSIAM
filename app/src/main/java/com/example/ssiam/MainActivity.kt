@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        appUpdater.checkForUpdates()
+        appUpdater.start()
     }
 
     inner class AppLifecycleObserver : DefaultLifecycleObserver {
