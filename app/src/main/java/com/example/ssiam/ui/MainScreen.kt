@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun MoneyScreen(moneyViewModel: MoneyViewModel = viewModel(factory = MoneyViewModel.Factory)) {
+fun MoneyScreen(moneyViewModel: MoneyViewModel = viewModel()) {
     val moneyUiState by moneyViewModel.uiState.collectAsState()
     Column {
         Text(
@@ -40,7 +40,7 @@ fun MoneyScreen(moneyViewModel: MoneyViewModel = viewModel(factory = MoneyViewMo
 }
 
 @Composable
-fun UpdaterScreen(updaterViewModel: UpdaterViewModel = viewModel(factory = UpdaterViewModel.Factory)) {
+fun UpdaterScreen(updaterViewModel: UpdaterViewModel = viewModel()) {
     val updaterUiState by updaterViewModel.uiState.collectAsState()
     if  (updaterUiState.isUpdateAvailable) {
         AlertDialog(

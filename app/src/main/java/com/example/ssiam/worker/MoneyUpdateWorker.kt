@@ -6,17 +6,17 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.ssiam.CCQ_AMOUNT
 import com.example.ssiam.HttpHandler
+import com.example.ssiam.MyChannel
 import com.example.ssiam.VALUE_URL
-import com.example.ssiam.VERSION_URL
-import kotlinx.coroutines.flow.MutableSharedFlow
-import org.json.JSONObject
+import com.example.ssiam.repository.UserPreferenceRepo
+import kotlinx.coroutines.flow.first
 import org.jsoup.Jsoup
 import kotlin.math.roundToLong
 
 class MoneyUpdateWorker(appContext: Context, workerParams: WorkerParameters) : CoroutineWorker(appContext, workerParams) {
-    companion object {
-        val outputData = MutableSharedFlow<Long>()
-    }
+
+    private val userPreferenceRepo = UserPreferenceRepo(appContext)
+    private val myChannel = MyChannel(appContext)
 
     override suspend fun doWork(): Result {
         val htmlContent = HttpHandler.handle(VALUE_URL)
@@ -24,7 +24,11 @@ class MoneyUpdateWorker(appContext: Context, workerParams: WorkerParameters) : C
         return if (htmlContent != null) {
             val newMoney = parseMoney(htmlContent)
             Log.w("MoneyUpdateWorker", "New money: $newMoney")
-            outputData.emit(newMoney)
+            val lastMoney = userPreferenceRepo.lastMoney.first()
+            if (lastMoney != newMoney) {
+                userPreferenceRepo.saveLastMoney(newMoney)
+                myChannel.notify("Money updated: $newMoney")
+            }
             Result.success()
         } else {
             Result.failure()

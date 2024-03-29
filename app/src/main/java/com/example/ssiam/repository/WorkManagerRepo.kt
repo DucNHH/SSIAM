@@ -10,9 +10,11 @@ import androidx.work.WorkManager
 import com.example.ssiam.MONEY_UPDATE_WORK
 import com.example.ssiam.worker.AppUpdateWorker
 import com.example.ssiam.worker.MoneyUpdateWorker
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
-class WorkManagerRepo(context: Context) {
+class WorkManagerRepo @Inject constructor(@ApplicationContext context: Context) {
     private val workManager = WorkManager.getInstance(context)
 
     fun getUpdatedMoney() {

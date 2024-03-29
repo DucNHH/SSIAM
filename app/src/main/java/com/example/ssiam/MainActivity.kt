@@ -10,7 +10,9 @@ import androidx.compose.ui.Modifier
 import com.example.ssiam.ui.MoneyScreen
 import com.example.ssiam.ui.UpdaterScreen
 import com.example.ssiam.ui.theme.SSIAMTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
